@@ -1,2 +1,4 @@
 Assignment2/AE
 Assignment2/config_ae.pkl
+*.pyc
+.idea/
