@@ -1,4 +1,7 @@
 Assignment2/AE
-Assignment2/config_ae.pkl
+Assignment2/CNN
+*.pkl
 *.pyc
 .idea/
+.xml
+.vscode
