@@ -10,7 +10,8 @@ import time
 NUM_LABELS = 47
 rnd = np.random.RandomState(123)
 tf.set_random_seed(123)
-
+CNN_MODEL_PATH = "./CNN/cnn_model"
+AE_MODEL_PATH = "./AE/ae_model"
 
 # Following functions are helper functions that you can feel free to change
 def convert_image_data_to_float(image_raw):
@@ -31,54 +32,107 @@ def visualize_ae(i, x, features, reconstructed_image):
     plt.imshow(x[i, :, :], cmap="gray")
     plt.figure(1)
     plt.imshow(reconstructed_image[i, :, :, 0], cmap="gray")
+    plt.figure(2)
+    plt.imshow(np.reshape(features[i, :, :, :], (7, -1), order="F"), cmap="gray", )
     plt.show()
-    # plt.figure(2)
-    # plt.imshow(np.reshape(features[i, :, :, :], (7, -1), order="F"), cmap="gray", )
 
 
-def build_cnn_model(placeholder_x, placeholder_y):
-    with tf.variable_scope("cnn") as scope:
-        img_float = convert_image_data_to_float(placeholder_x)
+def build_cnn_model(placeholder_x, placeholder_y, H, lr):
+    # with tf.variable_scope("cnn") as scope:
+    #     img_float = convert_image_data_to_float(placeholder_x)
+    #
+    #     # This is a simple fully connected network
+    #     img_flattened = tf.reshape(img_float, [-1, np.prod(placeholder_x.shape[1:])])
+    #     weight = tf.get_variable("fc_weight", shape=(img_flattened.shape[1], NUM_LABELS),
+    #                              initializer=tf.random_normal_initializer(stddev=0.01))
+    #     logits = tf.matmul(img_flattened, weight)
+    #
+    #     loss = tf.losses.sparse_softmax_cross_entropy(
+    #         labels=placeholder_y, logits=logits)
+    #
+    #     # gradient decent algorithm
+    #     params = [weight]
+    #     learning_rate = 0.001
+    #     grad = tf.gradients(loss, weight)[0]
+    #     train_op = tf.assign_add(weight, -learning_rate * grad)
+    #
+    # return params, train_op
+    img_float = convert_image_data_to_float(placeholder_x)
+    conv1 = tf.layers.conv2d(inputs=img_float, filters=32, kernel_size=[3, 3], strides=(1, 1), padding='same', activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+    pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[2, 2], strides=2)
+    conv2 = tf.layers.conv2d(inputs=pool1, filters=64, kernel_size=[3, 3], strides=(2, 2), padding='same', activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+    conv3 = tf.layers.conv2d(inputs=conv2, filters=64, kernel_size=[3, 3], strides=(1, 1), padding='same', activation=tf.nn.relu, kernel_initializer=tf.contrib.layers.xavier_initializer())
+    pool2 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2, 2], padding='same', strides=2)
+    fc1 = tf.contrib.layers.fully_connected(inputs=pool2, num_outputs=H, activation_fn=tf.nn.relu, weights_initializer=tf.contrib.xavier_initializer())
+    fc2 = tf.contrib.layers.fully_connected(inputs=fc1, num_outputs=47, activation_fn=tf.nn.sigmoid, weights_initializer=tf.contrib.xavier_initializer())
+    loss = tf.nn.sparse_softmax_cross_entropy_with_logits(labels=placeholder_y, logits=fc2)
 
-        # This is a simple fully connected network
-        img_flattened = tf.reshape(img_float, [-1, np.prod(placeholder_x.shape[1:])])
-        weight = tf.get_variable("fc_weight", shape=(img_flattened.shape[1], NUM_LABELS),
-                                 initializer=tf.random_normal_initializer(stddev=0.01))
-        logits = tf.matmul(img_flattened, weight)
+    optimizer = tf.train.AdamOptimizer(learning_rate=lr, beta1=0.9, beta2=0.999)
+    train_op = optimizer.minimize(loss)
 
-        loss = tf.losses.sparse_softmax_cross_entropy(
-            labels=placeholder_y, logits=logits)
+    return train_op, loss, tf.trainable_variables()
 
-        # gradient decent algorithm
-        params = [weight]
-        learning_rate = 0.001
-        grad = tf.gradients(loss, weight)[0]
-        train_op = tf.assign_add(weight, -learning_rate * grad)
-
-    return params, train_op
-
-
-CNN_MODEL_PATH = "./CNN/cnn_model"
-AE_MODEL_PATH = "./AE/ae_model"
 
 # Major interfaces
 def train_cnn(x, y, placeholder_x, placeholder_y):
-    # TODO: implement CNN training.
-    # Below is just a simple example, replace them with your own code
+    # # TODO: implement CNN training.
+    # # Below is just a simple example, replace them with your own code
+    # num_iterations = 100
+    #
+    # # This is a simple model, write your own
+    # params, train_op = build_cnn_model(placeholder_x, placeholder_y)
+    #
+    # cnn_saver = tf.train.Saver(var_list=params)
+    # with tf.Session() as sess:
+    #     sess.run(tf.global_variables_initializer())
+    #     sess.run(tf.local_variables_initializer())
+    #     feed_dict = {placeholder_x: x, placeholder_y: y}
+    #     for n_pass in range(num_iterations):
+    #         sess.run(train_op, feed_dict=feed_dict)
+    #         print("Epoch {} finished".format(n_pass))
+    #     cnn_saver.save(sess=sess, save_path=CNN_MODEL_PATH)
     num_iterations = 100
+    batch_size = 128
+    Hs = [512, 1024]
+    learning_rates = [0.1, 0.01, 0.001]
+    holdout = [0.5, 1]
+    best_model_loss = 1000000
+    config = {'H': Hs[0], 'lr': learning_rates[0], 'ratio':holdout[0]}
+    for H in Hs:
+        for lr in learning_rates:
+            for ratio in holdout:
+                train_op, loss, params = build_cnn_model(placeholder_x, placeholder_y, H, lr)
+                cnn_saver = tf.train.Saver(var_list=params)
+                start_time = time.time()
+                with tf.Session() as sess:
+                    sess.run(tf.global_variables_initializer())
+                    sess.run(tf.local_variables_initializer())
+                    x_train = x[0:int(x.shape[0] * ratio)]
+                    x_validation = x[int(x.shape[0] * ratio) : ]
+                    for epoch in range(num_iterations):
+                        for batch in range(x.shape[0] / batch_size):
+                            x_batch = x_train[batch * batch_size : (batch+1) * batch_size]
+                            y_batch = y[batch * batch_size: (batch + 1) * batch_size]
+                            feed_dict = {placeholder_x: x_batch, placeholder_y: y_batch}
+                            _ = sess.run([train_op], feed_dict=feed_dict)
+                            if batch % 10 == 0:
+                                loss_value = sess.run([loss], feed_dict=feed_dict)
+                                print("Epoch{0}, miniBatch{1}, Loss:{2}".format(epoch, batch, loss_value))
+                        if epoch != 0:
+                            loss_value = sess.run([loss], feed_dict=feed_dict)
+                            print("Epoch{0} End, Loss:{1}, Time:{2}".format(epoch, loss_value, time.time() - start_time))
+                    loss_value = sess.run([loss], feed_dict={placeholder_x: x_validation})
+                    print("H={0},lr={1},ratio={2} Validation Loss={3}, Time={4}".format(H, lr, ratio, loss_value, time.time() - start_time))
+                    if loss_value[0] < best_model_loss:
+                        best_model_loss = loss_value[0]
+                        config['H'] = H
+                        config['lr'] = lr
+                        config['ratio'] = ratio
+                        cnn_saver.save(sess, save_path=CNN_MODEL_PATH)
+    print("Model with lr={0}, H={1}, ratio={2} got the best performance, loss_value is {3}".format(config['lr'], config['H'], config['ratio'], best_model_loss))
+    with open('config_cnn.pkl', 'wb') as f:
+        pickle.dump(config, f)
 
-    # This is a simple model, write your own
-    params, train_op = build_cnn_model(placeholder_x, placeholder_y)
-
-    cnn_saver = tf.train.Saver(var_list=params)
-    with tf.Session() as sess:
-        sess.run(tf.global_variables_initializer())
-        sess.run(tf.local_variables_initializer())
-        feed_dict = {placeholder_x: x, placeholder_y: y}
-        for n_pass in range(num_iterations):
-            sess.run(train_op, feed_dict=feed_dict)
-            print("Epoch {} finished".format(n_pass))
-        cnn_saver.save(sess=sess, save_path=CNN_MODEL_PATH)
 
 
 def test_cnn(x, y, placeholder_x, placeholder_y):
@@ -95,9 +149,10 @@ def build_ae_model(placeholder_x, lr):
     conv2 = tf.layers.conv2d(inputs=pool1, filters=64, kernel_size=[3, 3], strides=(2, 2), padding='same', activation=tf.nn.relu)
     conv3 = tf.layers.conv2d(inputs=conv2, filters=64, kernel_size=[3, 3], strides=(1, 1), padding='same', activation=tf.nn.relu)
     pool2 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2, 2], padding='same', strides=2)
-    feature_map = pool2  # shape [-1, 4, 4, 64]
+    # feature_map = pool2  # shape [-1, 4, 4, 64]
+    feature_map = conv3 # shape [-1,7,7,64]
     # decoder
-    depool2 = tf.image.resize_images(images=feature_map, size=[7, 7], method=ResizeMethod.NEAREST_NEIGHBOR)
+    depool2 = tf.image.resize_images(images=pool2, size=[7, 7], method=ResizeMethod.NEAREST_NEIGHBOR)
     deconv3 = tf.layers.conv2d_transpose(inputs=depool2, filters=64, kernel_size=[3, 3], strides=1, padding='same', activation=tf.nn.relu)
     deconv2 = tf.layers.conv2d_transpose(inputs=deconv3, filters=32, kernel_size=[3, 3], strides=2, padding='same', activation=tf.nn.relu)
     depool1 = tf.image.resize_images(images=deconv2, size=[28, 28], method=ResizeMethod.NEAREST_NEIGHBOR)
@@ -114,10 +169,11 @@ def build_ae_model(placeholder_x, lr):
     return params, train_op, loss, feature_map, reconstructed_image
 
 def train_ae(x, placeholder_x):
-    num_epoch = 20
+    num_epoch = 10
     # learning_rate = [0.1, 0.01, 0.001]
-    learning_rate = [0.1, 0.01, 0.001]
-    batch_sizes = [64, 128, 256]
+    learning_rate = [0.001]
+    batch_sizes = [128]
+    # batch_sizes = [64 128, 256]
 
     # train validation split for Holdout validation
     train_x = x[0: int(0.8 * x.shape[0])]
