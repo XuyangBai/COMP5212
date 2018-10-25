@@ -20,6 +20,7 @@ def convert_image_data_to_float(image_raw):
     return img_float
 
 def build_cnn_model(placeholder_x, placeholder_y, H, lr):
+
     img_float = convert_image_data_to_float(placeholder_x)
     conv1 = tf.layers.conv2d(inputs=img_float,
                              filters=32,
@@ -131,7 +132,7 @@ def train_cnn(x, y, placeholder_x, placeholder_y):
     ratio = 0.5
     x = x[0: int(x.shape[0] * ratio)]
     y = y[0: int(x.shape[0] * ratio)]
-    num_iterations = 30
+    num_epoch = 30
     batch_size = 128
     Hs = [512, 1024]
     learning_rates = [0.001, 0.01, 0.1]
@@ -146,19 +147,29 @@ def train_cnn(x, y, placeholder_x, placeholder_y):
     config = {'H': Hs[0], 'lr': learning_rates[0]}
     for H in Hs:
         for lr in learning_rates:
+            training_set_loss = []
+            validation_set_loss = []
+            training_set_accuracy = []
+            validation_set_accuracy = []
             train_op, loss, accuracy, params = build_cnn_model(placeholder_x, placeholder_y, H, lr)
             cnn_saver = tf.train.Saver(max_to_keep=None)
             start_time = time.time()
             with tf.Session() as sess:
                 sess.run(tf.global_variables_initializer())
                 sess.run(tf.local_variables_initializer())
-                for epoch in range(num_iterations):
+                for epoch in range(num_epoch):
                     for batch in range(int(x_train.shape[0] / batch_size)):
                         x_batch = x_train[batch * batch_size: (batch + 1) * batch_size]
                         y_batch = y_train[batch * batch_size: (batch + 1) * batch_size]
                         feed_dict = {placeholder_x: x_batch, placeholder_y: y_batch}
                         _ = sess.run([train_op], feed_dict=feed_dict)
+                    # every epoch, save the loss and accuracy for plot.
                     loss_value, acc_value = sess.run([loss, accuracy], feed_dict=feed_dict)
+                    training_set_accuracy.append(acc_value)
+                    training_set_loss.append(loss_value)
+                    loss_value, acc_value = sess.run([loss, accuracy], feed_dict={placeholder_x: x_validation, placeholder_y:y_validation})
+                    validation_set_accuracy.append(acc_value)
+                    validation_set_loss.append(loss_value)
                     print("Epoch{0} End, Loss:{1}, Accuracy:{2}, Time:{3}".format(epoch, loss_value, acc_value,
                                                                                   time.time() - start_time))
                 loss_value, acc_value = sess.run([loss, accuracy], feed_dict={placeholder_x: x_validation,
@@ -167,14 +178,27 @@ def train_cnn(x, y, placeholder_x, placeholder_y):
                                                                                                  loss_value,
                                                                                                  acc_value,
                                                                                                  time.time() - start_time))
+                plt.figure()
+                plt.plot(np.arange(num_epoch), training_set_accuracy, 'g', label='training accuracy')
+                plt.plot(np.arange(num_epoch), validation_set_accuracy, 'b', label='validation accuracy')
+                plt.legend()
+                plt.xlabel('epoch')
+                plt.ylabel('accuracy')
+                plt.savefig('./CNN/accuracy/lr={0},H={1}.png'.format(lr, H))
+                plt.figure()
+                plt.plot(np.arange(num_epoch), training_set_loss, 'g', label='training loss')
+                plt.plot(np.arange(num_epoch), validation_set_loss, 'b', label='validation loss')
+                plt.legend()
+                plt.xlabel('epoch')
+                plt.ylabel('loss')
+                plt.savefig('./CNN/loss/lr={0},H={1}.png'.format(lr, H))
                 if acc_value > best_model_acc:
                     best_model_acc = acc_value
                     config['H'] = H
                     config['lr'] = lr
                     cnn_saver.save(sess, save_path=CNN_MODEL_PATH)
-    print("Model with lr={0}, H={1}, ratio={2} got the best performance, Accuracy is {3}".format(config['lr'],
+    print("Model with lr={0}, H={1}, got the best performance, Accuracy is {2}".format(config['lr'],
                                                                                                  config['H'],
-                                                                                                 config['ratio'],
                                                                                                  best_model_acc))
     with open('config_cnn.pkl', 'wb') as f:
         pickle.dump(config, f)
@@ -376,6 +400,10 @@ def train_ae(x, placeholder_x):
         ae_saver = tf.train.Saver()
         for epoch in range(num_epoch):
             # this time, use all the training set x to train the model with best hyperparameter
+<<<<<<< HEAD
+=======
+            loss_history = []
+>>>>>>> add train cnn with pretrained model
             num_batch = int(x.shape[0] / batch_size)
             for batch in range(num_batch):
                 x_batch = x[batch * batch_size: (batch + 1) * batch_size]
@@ -383,12 +411,18 @@ def train_ae(x, placeholder_x):
                 _ = sess.run([train_op], feed_dict=feed_dict)
             if epoch % 1 == 0:
                 loss_value = sess.run(loss, feed_dict=feed_dict)
+                loss_history.append(loss_value)
                 print("Epoch {0}, Loss: {1}, Time:{2}s".format(epoch, loss_value, time.time() - start_time))
         ae_saver.save(sess, save_path=AE_MODEL_PATH)
         ae_saver_for_cnn.save(sess, save_path=CNN_PRETRAINED_MODEL)
         print("Train the model with best hyperparameter use {} s".format(time.time() - start_time))
         loss_value = sess.run(loss, feed_dict={placeholder_x: x})
         print("The model's loss on training set is {}".format(loss_value))
+        plt.figure()
+        plt.plot(loss_history, 'g-')
+        plt.ylabel('Loss')
+        plt.xlabel('Epoch')
+        plt.savefig('./AE/best.png')
 
 
 def evaluate_ae(x, placeholder_x):
@@ -424,7 +458,12 @@ def main():
         file_train = np.load(datapath + "/data_classifier_train.npz")
         x_train = file_train["x_train"]
         y_train = file_train["y_train"]
+<<<<<<< HEAD
         train_cnn_with_pretrained_model(x_train, y_train, img_var, label_var)
+=======
+        train_cnn(x_train, y_train, img_var, label_var)
+        # train_cnn_with_pretrained_model(x_train, y_train, img_var, label_var)
+>>>>>>> add train cnn with pretrained model
     elif args.task == "test_cnn":
         file_test = np.load(datapath + "/data_classifier_test.npz")
         x_test = file_test["x_test"]
