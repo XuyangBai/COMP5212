@@ -8,7 +8,6 @@ import time
 
 
 def build_cnn_model(placeholder_x, placeholder_y, H, lr, model_num):
-
     img_float = convert_image_data_to_float(placeholder_x)
     with tf.variable_scope("CNN" + str(model_num)) as scope:
         conv1 = tf.layers.conv2d(inputs=img_float,
@@ -55,75 +54,12 @@ def build_cnn_model(placeholder_x, placeholder_y, H, lr, model_num):
     optimizer = tf.train.AdamOptimizer(learning_rate=lr, beta1=0.9, beta2=0.999)
     train_op = optimizer.minimize(loss)
 
-    return train_op, loss, accuracy, tf.trainable_variables()
+    return train_op, tf.log(loss), accuracy, tf.trainable_variables()
 
 
-def train_cnn_with_pretrained_model(x, y, placeholder_x, placeholder_y):
-    ratio = 0.5
-    x = x[0: int(x.shape[0] * ratio)]
-    y = y[0: int(y.shape[0] * ratio)]
-    num_iterations = 50
-    batch_size = 128
-    Hs = [512, 1024]
-    learning_rates = [0.001, 0.01, 0.1]
-
-    # train validation split for holdout validation
-    x_train = x[0:int(x.shape[0] * 0.8)]
-    y_train = y[0:int(y.shape[0] * 0.8)]
-    x_validation = x[int(x.shape[0] * 0.8):]
-    y_validation = y[int(y.shape[0] * 0.8):]
-
-    best_model_acc = 0
-    config = {'H': Hs[0], 'lr': learning_rates[0]}
-    model_num = 0
-    for H in Hs:
-        for lr in learning_rates:
-            model_num += 1
-            train_op, loss, accuracy, params = build_cnn_model(placeholder_x, placeholder_y, H, lr, model_num)
-            start_time = time.time()
-            with tf.Session() as sess:
-                sess.run(tf.global_variables_initializer())
-                sess.run(tf.local_variables_initializer())
-                params_save = {
-                    'conv1': sess.graph.get_tensor_by_name('CNN' + str(model_num) + '/conv1/kernel:0'),
-                    'conv2': sess.graph.get_tensor_by_name('CNN' + str(model_num) + '/conv2/kernel:0'),
-                    'conv3': sess.graph.get_tensor_by_name('CNN' + str(model_num) + '/conv3/kernel:0'),
-                }
-                cnn_saver = tf.train.Saver(params_save)
-                cnn_saver.restore(sess, CNN_PRETRAINED_MODEL)
-                for epoch in range(num_iterations):
-                    for batch in range(int(x_train.shape[0] / batch_size)):
-                        x_batch = x_train[batch * batch_size: (batch + 1) * batch_size]
-                        y_batch = y_train[batch * batch_size: (batch + 1) * batch_size]
-                        feed_dict = {placeholder_x: x_batch, placeholder_y: y_batch}
-                        _ = sess.run([train_op], feed_dict=feed_dict)
-                    loss_value, acc_value = sess.run([loss, accuracy], feed_dict=feed_dict)
-                    print("Epoch{0} End, Loss:{1:.3f}, Accuracy:{2:.3f}, Time:{3:.3f}".format(epoch, loss_value, acc_value,
-                                                                                  time.time() - start_time))
-                loss_value, acc_value = sess.run([loss, accuracy], feed_dict={placeholder_x: x_validation,
-                                                                              placeholder_y: y_validation})
-                print("H={0},lr={1} Validation Loss={3:.3f}, Accuracy{4:.3f}, Time={5:.3f}".format(H, lr, loss_value,
-                                                                                                 acc_value,
-                                                                                                 time.time() - start_time))
-                if acc_value > best_model_acc:
-                    best_model_acc = acc_value
-                    config['H'] = H
-                    config['lr'] = lr
-                    cnn_saver.save(sess, save_path=CNN_MODEL_PATH)
-    print("Model with lr={0}, H={1}, ratio={2} got the best performance, Accuracy is {3}".format(config['lr'],
-                                                                                                 config['H'],
-                                                                                                 config['ratio'],
-                                                                                                 best_model_acc))
-    with open('config_cnn.pkl', 'wb') as f:
-        pickle.dump(config, f)
-
-
-# Major interfaces
-def train_cnn(x, y, placeholder_x, placeholder_y):
-    ratio = 0.5
-    x = x[0: int(x.shape[0] * ratio)]
-    y = y[0: int(y.shape[0] * ratio)]
-    num_epoch = 1
+def parameter_search(x, y, placeholder_x, placeholder_y, pretrained):
+    # return {'H': 1024, 'lr': 0.001}
+    num_epoch = 50
     batch_size = 128
     Hs = [512, 1024]
     learning_rates = [0.001, 0.01, 0.1]
@@ -145,11 +81,20 @@ def train_cnn(x, y, placeholder_x, placeholder_y):
             validation_set_accuracy = []
             model_num += 1
             train_op, loss, accuracy, params = build_cnn_model(placeholder_x, placeholder_y, H, lr, model_num)
-            cnn_saver = tf.train.Saver(max_to_keep=None)
+
             start_time = time.time()
             with tf.Session() as sess:
                 sess.run(tf.global_variables_initializer())
                 sess.run(tf.local_variables_initializer())
+                # if use pretrained model, load the saved checkpoint first
+                if pretrained is True:
+                    params_save = {
+                        'conv1': sess.graph.get_tensor_by_name('CNN' + str(model_num) + '/conv1/kernel:0'),
+                        'conv2': sess.graph.get_tensor_by_name('CNN' + str(model_num) + '/conv2/kernel:0'),
+                        'conv3': sess.graph.get_tensor_by_name('CNN' + str(model_num) + '/conv3/kernel:0'),
+                    }
+                    cnn_saver = tf.train.Saver(params_save)
+                    cnn_saver.restore(sess, CNN_PRETRAINED_MODEL)
                 for epoch in range(num_epoch):
                     for batch in range(int(x_train.shape[0] / batch_size)):
                         x_batch = x_train[batch * batch_size: (batch + 1) * batch_size]
@@ -165,46 +110,70 @@ def train_cnn(x, y, placeholder_x, placeholder_y):
                     validation_set_accuracy.append(acc_value)
                     validation_set_loss.append(loss_value)
                     print("Epoch{0}, Loss:{1:.3f}, Accuracy:{2:.3f}, Time:{3:.3f}".format(epoch, loss_value, acc_value,
-                                                                                  time.time() - start_time))
+                                                                                          time.time() - start_time))
                 loss_value, acc_value = sess.run([loss, accuracy], feed_dict={placeholder_x: x_validation,
                                                                               placeholder_y: y_validation})
                 print("H={0},lr={1}, Validation Loss={2:.3f}, Accuracy:{3:.3f}, Time={4:.3f}".format(H, lr, loss_value,
-                                                                                                 acc_value,
-                                                                                                 time.time() - start_time))
+                                                                                                     acc_value,
+                                                                                                     time.time() - start_time))
                 plt.figure()
                 plt.plot(np.arange(num_epoch), training_set_accuracy, 'g', label='training accuracy')
                 plt.plot(np.arange(num_epoch), validation_set_accuracy, 'b', label='validation accuracy')
                 plt.legend()
                 plt.xlabel('epoch')
                 plt.ylabel('accuracy')
-                plt.savefig('./CNN/accuracy/lr={0},H={1}.png'.format(lr, H))
+                if pretrained:
+                    plt.savefig('./CNN_pretrained/accuracy/lr={0},H={1}.png'.format(lr, H))
+                else:
+                    plt.savefig('./CNN/accuracy/lr={0},H={1}.png'.format(lr, H))
                 plt.figure()
                 plt.plot(np.arange(num_epoch), training_set_loss, 'g', label='training loss')
                 plt.plot(np.arange(num_epoch), validation_set_loss, 'b', label='validation loss')
                 plt.legend()
                 plt.xlabel('epoch')
                 plt.ylabel('loss')
-                plt.savefig('./CNN/loss/lr={0},H={1}.png'.format(lr, H))
+                if pretrained:
+                    plt.savefig('./CNN_pretrained/loss/lr={0},H={1}.png'.format(lr, H))
+                else:
+                    plt.savefig('./CNN/loss/lr={0},H={1}.png'.format(lr, H))
                 if acc_value > best_model_acc:
                     best_model_acc = acc_value
                     config['H'] = H
                     config['lr'] = lr
-                    cnn_saver.save(sess, save_path=CNN_MODEL_PATH)
     print("Model with lr={0}, H={1}, got the best performance, Accuracy is {2:.3f}".format(config['lr'],
-                                                                                       config['H'],
-                                                                                       best_model_acc))
+                                                                                           config['H'],
+                                                                                           best_model_acc))
     with open('config_cnn.pkl', 'wb') as f:
         pickle.dump(config, f)
+    return config
+
+
+def train_cnn(x, y, placeholder_x, placeholder_y, pretrained=True):
+    x_search = x[0: int(x.shape[0] * RATIO)]
+    y_search = y[0: int(y.shape[0] * RATIO)]
+    config = parameter_search(x_search, y_search, placeholder_x, placeholder_y, pretrained)
+
+    num_epoch = 50
+    batch_size = 128
 
     # use the best hyperparameter and all the training data to train the model
     start_time = time.time()
     training_set_loss = []
     training_set_accuracy = []
     with tf.Session() as sess:
-        model_num += 1
-        train_op, loss, accuracy, params = build_cnn_model(placeholder_x, placeholder_y, H, lr, model_num)
+        # model_num set to 0 for reuse
+        train_op, loss, accuracy, params = build_cnn_model(placeholder_x, placeholder_y, config['H'], config['lr'], 0)
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
+        cnn_saver = tf.train.Saver()
+        if pretrained is True:
+            params_save = {
+                'conv1': sess.graph.get_tensor_by_name('CNN' + str(0) + '/conv1/kernel:0'),
+                'conv2': sess.graph.get_tensor_by_name('CNN' + str(0) + '/conv2/kernel:0'),
+                'conv3': sess.graph.get_tensor_by_name('CNN' + str(0) + '/conv3/kernel:0'),
+            }
+            cnn_saver_pretrained = tf.train.Saver(params_save)
+            cnn_saver_pretrained.restore(sess, CNN_PRETRAINED_MODEL)
         for epoch in range(num_epoch):
             for batch in range(int(x.shape[0] / batch_size)):
                 x_batch = x[batch * batch_size: (batch + 1) * batch_size]
@@ -217,11 +186,13 @@ def train_cnn(x, y, placeholder_x, placeholder_y):
             training_set_loss.append(loss_value)
             print("Epoch{0} End, Loss:{1:.3f}, Accuracy:{2:.3f}, Time:{3:.3f}".format(epoch, loss_value, acc_value,
                                                                                       time.time() - start_time))
-        loss_value, acc_value = sess.run([loss, accuracy], feed_dict={placeholder_x: x_train,
-                                                                      placeholder_y: y_train})
-        print("Train the model with best pyerparameter use {}s".format(time.time() - start_time))
-        print("The model's loss on the training set is {}".format(loss_value))
-        print("The model's accuracy on the training set is {}%".format(acc_value * 100))
+
+        cnn_saver.save(sess, save_path=CNN_MODEL_PATH)
+        loss_value, acc_value = sess.run([loss, accuracy], feed_dict={placeholder_x: x,
+                                                                      placeholder_y: y})
+        print("Train the model with best hyerparameter use {:.1f}s".format(time.time() - start_time))
+        print("The model's loss on the training set is {:.3f}".format(loss_value))
+        print("The model's accuracy on the training set is {:.1f}%".format(acc_value * 100))
         plt.figure()
         plt.subplot(121)
         plt.plot(np.arange(num_epoch), training_set_accuracy, 'g', label='training accuracy')
@@ -231,21 +202,26 @@ def train_cnn(x, y, placeholder_x, placeholder_y):
         plt.plot(np.arange(num_epoch), training_set_loss, 'b', label='training loss')
         plt.xlabel('epoch')
         plt.ylabel('loss')
-        plt.savefig('./CNN/best.png'.format(lr, H))
+        if pretrained:
+            plt.savefig('./CNN_pretrained/best.png')
+        else:
+            plt.savefig('./CNN/best.png')
 
 
-
-def test_cnn(x, y, placeholder_x, placeholder_y):
+def test_cnn(x, y, placeholder_x, placeholder_y, pretrained=True):
     with open('config_cnn.pkl', 'rb') as f:
         config = pickle.load(f, encoding='utf-8')
-
-    train_op, loss, accuracy, params = build_cnn_model(placeholder_x, placeholder_y, config['H'], config['lr'])
+    # model_num = 0 means the model with best parameters
+    train_op, loss, accuracy, params = build_cnn_model(placeholder_x, placeholder_y, config['H'], config['lr'], 0)
     cnn_saver = tf.train.Saver()
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
-        cnn_saver.restore(sess, CNN_MODEL_PATH)
+        if pretrained:
+            cnn_saver.restore(sess, CNN_PRETRAINED_MODEL)
+        else:
+            cnn_saver.restore(sess, CNN_MODEL_PATH)
         feed_dict = {placeholder_x: x, placeholder_y: y}
-        result_accuracy = sess.run(accuracy, feed_dict=feed_dict)
-        print("Holdout validation with p = 0:5: Accuracy on test set:{}%".format(result_accuracy * 100))
+        loss_value, result_accuracy = sess.run([loss, accuracy], feed_dict=feed_dict)
+        print("Loss on test set:{}".format(loss_value))
     return result_accuracy
