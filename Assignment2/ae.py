@@ -111,7 +111,7 @@ def visualize_ae(i, x, features, reconstructed_image):
 
 
 def train_ae(x, placeholder_x):
-    num_epoch = 1
+    num_epoch = 3
     batch_size = 128
     learning_rate = [0.1, 0.01, 0.001]
 
@@ -120,8 +120,8 @@ def train_ae(x, placeholder_x):
     validation_x = x[int(0.8 * x.shape[0]):]
 
     # Tune the parameters for CAE training with holdout validation
-    best_model_loss = 1000000
-    best_learning_rate = learning_rate[0]
+    # best_model_loss = 1000000
+    # best_learning_rate = learning_rate[0]
     # for lr in learning_rate:
     #     training_set_loss_history = []
     #     validation_set_loss_history = []
@@ -171,7 +171,6 @@ def train_ae(x, placeholder_x):
     #     pickle.dump(config, handle)
 
     # use the best hyperparameter  and all the training data to train the model
-
     best_learning_rate = 0.001
     start_time = time.time()
     with tf.Session() as sess:
@@ -201,8 +200,9 @@ def train_ae(x, placeholder_x):
         ae_saver.save(sess, save_path=AE_MODEL_PATH)
         ae_saver_for_cnn.save(sess, save_path=CNN_PRETRAINED_MODEL)
         print("Train the model with best hyperparameter use {} s".format(time.time() - start_time))
-        loss_value = sess.run(loss, feed_dict={placeholder_x: x})
-        print("The model's loss on training set is {}".format(loss_value))
+        # TODO: very time-consuming
+        # loss_value = sess.run(loss, feed_dict={placeholder_x: x})
+        # print("The model's loss on training set is {}".format(loss_value))
         plt.figure()
         plt.plot(loss_history, 'g-')
         plt.ylabel('Loss')
@@ -214,7 +214,7 @@ def evaluate_ae(x, placeholder_x):
     with open('config_ae.pkl', 'rb') as f:
         config = pickle.load(f, encoding='utf-8')
 
-    params, train_op, loss, feature_map, reconstructed_image = build_ae_model(placeholder_x, config['lr'])
+    params, train_op, loss, feature_map, reconstructed_image = build_ae_model(placeholder_x, config['lr'], for_save=True)
     ae_saver = tf.train.Saver()
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
