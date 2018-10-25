@@ -7,7 +7,6 @@ import matplotlib.pyplot as plt
 import time
 
 
-
 def build_cnn_model(placeholder_x, placeholder_y, H, lr):
     img_float = convert_image_data_to_float(placeholder_x)
     conv1 = tf.layers.conv2d(inputs=img_float,
@@ -61,16 +60,16 @@ def train_cnn_with_pretrained_model(x, y, placeholder_x, placeholder_y):
     ratio = 0.5
     x = x[0: int(x.shape[0] * ratio)]
     y = y[0: int(y.shape[0] * ratio)]
-    num_iterations = 30
+    num_iterations = 10
     batch_size = 128
     Hs = [512, 1024]
     learning_rates = [0.001, 0.01, 0.1]
 
     # train validation split for holdout validation
     x_train = x[0:int(x.shape[0] * 0.8)]
-    y_train = y[0:int(x.shape[0] * 0.8)]
+    y_train = y[0:int(y.shape[0] * 0.8)]
     x_validation = x[int(x.shape[0] * 0.8):]
-    y_validation = y[int(x.shape[0] * 0.8):]
+    y_validation = y[int(y.shape[0] * 0.8):]
 
     best_model_acc = 0
     config = {'H': Hs[0], 'lr': learning_rates[0]}

@@ -3,8 +3,7 @@ import argparse
 import tensorflow as tf
 
 from Assignment2.ae import train_ae, evaluate_ae
-from Assignment2.cnn import train_cnn, test_cnn
-
+from Assignment2.cnn import train_cnn, test_cnn, train_cnn_with_pretrained_model
 
 rnd = np.random.RandomState(123)
 tf.set_random_seed(123)
@@ -26,8 +25,8 @@ def main():
         file_train = np.load(datapath + "/data_classifier_train.npz")
         x_train = file_train["x_train"]
         y_train = file_train["y_train"]
-        train_cnn(x_train, y_train, img_var, label_var)
-        # train_cnn_with_pretrained_model(x_train, y_train, img_var, label_var)
+        # train_cnn(x_train, y_train, img_var, label_var)
+        train_cnn_with_pretrained_model(x_train, y_train, img_var, label_var)
     elif args.task == "test_cnn":
         file_test = np.load(datapath + "/data_classifier_test.npz")
         x_test = file_test["x_test"]
