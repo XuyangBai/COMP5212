@@ -1,5 +1,5 @@
 import pickle
-
+import tensorflow as tf
 import numpy as np
 from Assignment2.common import *
 import tensorflow as tf
@@ -7,42 +7,44 @@ import matplotlib.pyplot as plt
 import time
 
 
-def build_cnn_model(placeholder_x, placeholder_y, H, lr):
+def build_cnn_model(placeholder_x, placeholder_y, H, lr, model_num):
+
     img_float = convert_image_data_to_float(placeholder_x)
-    conv1 = tf.layers.conv2d(inputs=img_float,
-                             filters=32,
-                             kernel_size=[3, 3],
-                             strides=(1, 1),
-                             padding='same',
-                             activation=tf.nn.relu,
-                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                             name='conv1')
-    pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[2, 2], strides=2)
-    conv2 = tf.layers.conv2d(inputs=pool1,
-                             filters=64,
-                             kernel_size=[3, 3],
-                             strides=(2, 2),
-                             padding='same',
-                             activation=tf.nn.relu,
-                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                             name='conv2')
-    conv3 = tf.layers.conv2d(inputs=conv2,
-                             filters=64,
-                             kernel_size=[3, 3],
-                             strides=(1, 1),
-                             padding='same',
-                             activation=tf.nn.relu,
-                             kernel_initializer=tf.contrib.layers.xavier_initializer(),
-                             name='conv3')
-    pool2 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2, 2], padding='same', strides=2)
-    fc1 = tf.contrib.layers.fully_connected(inputs=tf.reshape(pool2, [-1, np.prod(pool2.shape[1:])]),
-                                            num_outputs=H,
-                                            activation_fn=tf.nn.relu,
-                                            weights_initializer=tf.contrib.layers.xavier_initializer())
-    fc2 = tf.contrib.layers.fully_connected(inputs=fc1,
-                                            num_outputs=47,
-                                            activation_fn=tf.nn.sigmoid,
-                                            weights_initializer=tf.contrib.layers.xavier_initializer())
+    with tf.variable_scope("CNN" + str(model_num)) as scope:
+        conv1 = tf.layers.conv2d(inputs=img_float,
+                                 filters=32,
+                                 kernel_size=[3, 3],
+                                 strides=(1, 1),
+                                 padding='same',
+                                 activation=tf.nn.relu,
+                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                 name='conv1')
+        pool1 = tf.layers.max_pooling2d(inputs=conv1, pool_size=[2, 2], strides=2)
+        conv2 = tf.layers.conv2d(inputs=pool1,
+                                 filters=64,
+                                 kernel_size=[3, 3],
+                                 strides=(2, 2),
+                                 padding='same',
+                                 activation=tf.nn.relu,
+                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                 name='conv2')
+        conv3 = tf.layers.conv2d(inputs=conv2,
+                                 filters=64,
+                                 kernel_size=[3, 3],
+                                 strides=(1, 1),
+                                 padding='same',
+                                 activation=tf.nn.relu,
+                                 kernel_initializer=tf.contrib.layers.xavier_initializer(),
+                                 name='conv3')
+        pool2 = tf.layers.max_pooling2d(inputs=conv3, pool_size=[2, 2], padding='same', strides=2)
+        fc1 = tf.contrib.layers.fully_connected(inputs=tf.reshape(pool2, [-1, np.prod(pool2.shape[1:])]),
+                                                num_outputs=H,
+                                                activation_fn=tf.nn.relu,
+                                                weights_initializer=tf.contrib.layers.xavier_initializer())
+        fc2 = tf.contrib.layers.fully_connected(inputs=fc1,
+                                                num_outputs=47,
+                                                activation_fn=tf.nn.sigmoid,
+                                                weights_initializer=tf.contrib.layers.xavier_initializer())
     logits = fc2
     loss = tf.losses.sparse_softmax_cross_entropy(labels=placeholder_y, logits=logits)
     # compute the accuracy
@@ -73,17 +75,19 @@ def train_cnn_with_pretrained_model(x, y, placeholder_x, placeholder_y):
 
     best_model_acc = 0
     config = {'H': Hs[0], 'lr': learning_rates[0]}
+    model_num = 0
     for H in Hs:
         for lr in learning_rates:
-            train_op, loss, accuracy, params = build_cnn_model(placeholder_x, placeholder_y, H, lr)
+            model_num += 1
+            train_op, loss, accuracy, params = build_cnn_model(placeholder_x, placeholder_y, H, lr, model_num)
             start_time = time.time()
             with tf.Session() as sess:
                 sess.run(tf.global_variables_initializer())
                 sess.run(tf.local_variables_initializer())
                 params_save = {
-                    'conv1': sess.graph.get_tensor_by_name('conv1/kernel:0'),
-                    'conv2': sess.graph.get_tensor_by_name('conv2/kernel:0'),
-                    'conv3': sess.graph.get_tensor_by_name('conv3/kernel:0'),
+                    'conv1': sess.graph.get_tensor_by_name('CNN' + str(model_num) + '/conv1/kernel:0'),
+                    'conv2': sess.graph.get_tensor_by_name('CNN' + str(model_num) + '/conv2/kernel:0'),
+                    'conv3': sess.graph.get_tensor_by_name('CNN' + str(model_num) + '/conv3/kernel:0'),
                 }
                 cnn_saver = tf.train.Saver(params_save)
                 cnn_saver.restore(sess, CNN_PRETRAINED_MODEL)
@@ -94,12 +98,11 @@ def train_cnn_with_pretrained_model(x, y, placeholder_x, placeholder_y):
                         feed_dict = {placeholder_x: x_batch, placeholder_y: y_batch}
                         _ = sess.run([train_op], feed_dict=feed_dict)
                     loss_value, acc_value = sess.run([loss, accuracy], feed_dict=feed_dict)
-                    print("Epoch{0} End, Loss:{1}, Accuracy:{2}, Time:{3}".format(epoch, loss_value, acc_value,
+                    print("Epoch{0} End, Loss:{1:.3f}, Accuracy:{2:.3f}, Time:{3:.3f}".format(epoch, loss_value, acc_value,
                                                                                   time.time() - start_time))
                 loss_value, acc_value = sess.run([loss, accuracy], feed_dict={placeholder_x: x_validation,
                                                                               placeholder_y: y_validation})
-                print("H={0},lr={1},ratio={2} Validation Loss={3}, Accuracy{4}, Time={5}".format(H, lr, ratio,
-                                                                                                 loss_value,
+                print("H={0},lr={1} Validation Loss={3:.3f}, Accuracy{4:.3f}, Time={5:.3f}".format(H, lr, loss_value,
                                                                                                  acc_value,
                                                                                                  time.time() - start_time))
                 if acc_value > best_model_acc:
@@ -119,8 +122,8 @@ def train_cnn_with_pretrained_model(x, y, placeholder_x, placeholder_y):
 def train_cnn(x, y, placeholder_x, placeholder_y):
     ratio = 0.5
     x = x[0: int(x.shape[0] * ratio)]
-    y = y[0: int(x.shape[0] * ratio)]
-    num_epoch = 30
+    y = y[0: int(y.shape[0] * ratio)]
+    num_epoch = 10
     batch_size = 128
     Hs = [512, 1024]
     learning_rates = [0.001, 0.01, 0.1]
@@ -133,13 +136,15 @@ def train_cnn(x, y, placeholder_x, placeholder_y):
 
     best_model_acc = 0
     config = {'H': Hs[0], 'lr': learning_rates[0]}
+    model_num = 0
     for H in Hs:
         for lr in learning_rates:
             training_set_loss = []
             validation_set_loss = []
             training_set_accuracy = []
             validation_set_accuracy = []
-            train_op, loss, accuracy, params = build_cnn_model(placeholder_x, placeholder_y, H, lr)
+            model_num += 1
+            train_op, loss, accuracy, params = build_cnn_model(placeholder_x, placeholder_y, H, lr, model_num)
             cnn_saver = tf.train.Saver(max_to_keep=None)
             start_time = time.time()
             with tf.Session() as sess:
@@ -159,12 +164,11 @@ def train_cnn(x, y, placeholder_x, placeholder_y):
                                                                                   placeholder_y: y_validation})
                     validation_set_accuracy.append(acc_value)
                     validation_set_loss.append(loss_value)
-                    print("Epoch{0} End, Loss:{1}, Accuracy:{2}, Time:{3}".format(epoch, loss_value, acc_value,
+                    print("Epoch{ 0}, Loss:{1:.3f}, Accuracy:{2:.3f}, Time:{3:.3f}".format(epoch, loss_value, acc_value,
                                                                                   time.time() - start_time))
                 loss_value, acc_value = sess.run([loss, accuracy], feed_dict={placeholder_x: x_validation,
                                                                               placeholder_y: y_validation})
-                print("H={0},lr={1},ratio={2} Validation Loss={3}, Accuracy{4}, Time={5}".format(H, lr, ratio,
-                                                                                                 loss_value,
+                print("H={0},lr={1}, Validation Loss={2:.3f}, Accuracy:{3:.3f}, Time={4:.3f}".format(H, lr, loss_value,
                                                                                                  acc_value,
                                                                                                  time.time() - start_time))
                 plt.figure()
@@ -186,11 +190,39 @@ def train_cnn(x, y, placeholder_x, placeholder_y):
                     config['H'] = H
                     config['lr'] = lr
                     cnn_saver.save(sess, save_path=CNN_MODEL_PATH)
-    print("Model with lr={0}, H={1}, got the best performance, Accuracy is {2}".format(config['lr'],
+    print("Model with lr={0}, H={1}, got the best performance, Accuracy is {2:.3f}".format(config['lr'],
                                                                                        config['H'],
                                                                                        best_model_acc))
     with open('config_cnn.pkl', 'wb') as f:
         pickle.dump(config, f)
+
+    # use the best hyperparameter and all the training data to train the model
+    start_time = time.time()
+    training_set_loss = []
+    training_set_accuracy = []
+    with tf.Session() as sess:
+        model_num += 1
+        train_op, loss, accuracy, params = build_cnn_model(placeholder_x, placeholder_y, H, lr, model_num)
+        sess.run(tf.global_variables_initializer())
+        sess.run(tf.local_variables_initializer())
+        for epoch in range(num_epoch):
+            for batch in range(int(x.shape[0] / batch_size)):
+                x_batch = x[batch * batch_size: (batch + 1) * batch_size]
+                y_batch = y[batch * batch_size: (batch + 1) * batch_size]
+                feed_dict = {placeholder_x: x_batch, placeholder_y: y_batch}
+                _ = sess.run([train_op], feed_dict=feed_dict)
+            # every epoch, save the loss and accuracy for plot.
+            loss_value, acc_value = sess.run([loss, accuracy], feed_dict=feed_dict)
+            training_set_accuracy.append(acc_value)
+            training_set_loss.append(loss_value)
+            print("Epoch{0} End, Loss:{1:.3f}, Accuracy:{2:.3f}, Time:{3:.3f}".format(epoch, loss_value, acc_value,
+                                                                                      time.time() - start_time))
+        loss_value, acc_value = sess.run([loss, accuracy], feed_dict={placeholder_x: x_train,
+                                                                      placeholder_y: y_train})
+        print("Train the model with best pyerparameter use {}s".format(time.time() - start_time))
+        print("The model's loss on the training set is {}".format(loss_value))
+        print("The model's accuracy on the training set is {}%".format(acc_value * 100))
+
 
 
 def test_cnn(x, y, placeholder_x, placeholder_y):
