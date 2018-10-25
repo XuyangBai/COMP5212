@@ -62,7 +62,7 @@ def train_cnn_with_pretrained_model(x, y, placeholder_x, placeholder_y):
     ratio = 0.5
     x = x[0: int(x.shape[0] * ratio)]
     y = y[0: int(y.shape[0] * ratio)]
-    num_iterations = 10
+    num_iterations = 50
     batch_size = 128
     Hs = [512, 1024]
     learning_rates = [0.001, 0.01, 0.1]
@@ -123,7 +123,7 @@ def train_cnn(x, y, placeholder_x, placeholder_y):
     ratio = 0.5
     x = x[0: int(x.shape[0] * ratio)]
     y = y[0: int(y.shape[0] * ratio)]
-    num_epoch = 10
+    num_epoch = 1
     batch_size = 128
     Hs = [512, 1024]
     learning_rates = [0.001, 0.01, 0.1]
@@ -164,7 +164,7 @@ def train_cnn(x, y, placeholder_x, placeholder_y):
                                                                                   placeholder_y: y_validation})
                     validation_set_accuracy.append(acc_value)
                     validation_set_loss.append(loss_value)
-                    print("Epoch{ 0}, Loss:{1:.3f}, Accuracy:{2:.3f}, Time:{3:.3f}".format(epoch, loss_value, acc_value,
+                    print("Epoch{0}, Loss:{1:.3f}, Accuracy:{2:.3f}, Time:{3:.3f}".format(epoch, loss_value, acc_value,
                                                                                   time.time() - start_time))
                 loss_value, acc_value = sess.run([loss, accuracy], feed_dict={placeholder_x: x_validation,
                                                                               placeholder_y: y_validation})
@@ -222,6 +222,16 @@ def train_cnn(x, y, placeholder_x, placeholder_y):
         print("Train the model with best pyerparameter use {}s".format(time.time() - start_time))
         print("The model's loss on the training set is {}".format(loss_value))
         print("The model's accuracy on the training set is {}%".format(acc_value * 100))
+        plt.figure()
+        plt.subplot(121)
+        plt.plot(np.arange(num_epoch), training_set_accuracy, 'g', label='training accuracy')
+        plt.xlabel('epoch')
+        plt.ylabel('accuracy')
+        plt.subplot(122)
+        plt.plot(np.arange(num_epoch), training_set_loss, 'b', label='training loss')
+        plt.xlabel('epoch')
+        plt.ylabel('loss')
+        plt.savefig('./CNN/best.png'.format(lr, H))
 
 
 
