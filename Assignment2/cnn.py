@@ -164,7 +164,7 @@ def train_cnn(x, y, placeholder_x, placeholder_y):
                                                                                   placeholder_y: y_validation})
                     validation_set_accuracy.append(acc_value)
                     validation_set_loss.append(loss_value)
-                    print("Epoch{ 0}, Loss:{1:.3f}, Accuracy:{2:.3f}, Time:{3:.3f}".format(epoch, loss_value, acc_value,
+                    print("Epoch{0}, Loss:{1:.3f}, Accuracy:{2:.3f}, Time:{3:.3f}s".format(epoch, loss_value, acc_value,
                                                                                   time.time() - start_time))
                 loss_value, acc_value = sess.run([loss, accuracy], feed_dict={placeholder_x: x_validation,
                                                                               placeholder_y: y_validation})
