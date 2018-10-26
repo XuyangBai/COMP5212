@@ -217,10 +217,7 @@ def test_cnn(x, y, placeholder_x, placeholder_y, pretrained=True):
     with tf.Session() as sess:
         sess.run(tf.global_variables_initializer())
         sess.run(tf.local_variables_initializer())
-        if pretrained:
-            cnn_saver.restore(sess, CNN_PRETRAINED_MODEL)
-        else:
-            cnn_saver.restore(sess, CNN_MODEL_PATH)
+        cnn_saver.restore(sess, CNN_MODEL_PATH)
         feed_dict = {placeholder_x: x, placeholder_y: y}
         loss_value, result_accuracy = sess.run([loss, accuracy], feed_dict=feed_dict)
         print("Loss on test set:{}".format(loss_value))
