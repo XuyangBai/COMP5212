@@ -61,6 +61,7 @@ def build_ae_model(placeholder_x, lr, model_num):
                                          strides=1,
                                          padding='same',
                                          activation=tf.nn.relu)
+    # using sigmoid function makes the model perform bad, so I change it
     # output = tf.sigmoid(deconv1)
     output = deconv1
     reconstructed_image = tf.cast(output * 255, tf.uint8)

@@ -149,9 +149,8 @@ def parameter_search(x, y, placeholder_x, placeholder_y, pretrained):
 
 
 def train_cnn(x, y, placeholder_x, placeholder_y, pretrained=True):
-    x_search = x[0: int(x.shape[0] * RATIO)]
-    y_search = y[0: int(y.shape[0] * RATIO)]
-    config = parameter_search(x_search, y_search, placeholder_x, placeholder_y, pretrained)
+
+    config = parameter_search(x, y, placeholder_x, placeholder_y, pretrained)
 
     num_epoch = 50
     batch_size = 128
