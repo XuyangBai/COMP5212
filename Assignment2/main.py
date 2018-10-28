@@ -3,8 +3,8 @@ import argparse
 import tensorflow as tf
 
 from Assignment2.ae import train_ae, evaluate_ae
-from Assignment2.cnn import train_cnn, test_cnn, train_cnn_with_pretrained_model
-
+from Assignment2.cnn import train_cnn, test_cnn
+from Assignment2.cnn import RATIO, PRE_TRAINED
 rnd = np.random.RandomState(123)
 tf.set_random_seed(123)
 
@@ -25,13 +25,14 @@ def main():
         file_train = np.load(datapath + "/data_classifier_train.npz")
         x_train = file_train["x_train"]
         y_train = file_train["y_train"]
-        # train_cnn(x_train, y_train, img_var, label_var)
-        train_cnn_with_pretrained_model(x_train, y_train, img_var, label_var)
+        x_train = x_train[0: int(x_train.shape[0] * RATIO)]
+        y_train = y_train[0: int(y_train.shape[0] * RATIO)]
+        train_cnn(x_train, y_train, img_var, label_var, PRE_TRAINED)
     elif args.task == "test_cnn":
         file_test = np.load(datapath + "/data_classifier_test.npz")
         x_test = file_test["x_test"]
         y_test = file_test["y_test"]
-        accuracy = test_cnn(x_test, y_test, img_var, label_var)
+        accuracy = test_cnn(x_test, y_test, img_var, label_var, PRE_TRAINED)
         print("accuracy = {}\n".format(accuracy))
     elif args.task == "train_ae":
         file_unsupervised = np.load(datapath + "/data_autoencoder_train.npz")
